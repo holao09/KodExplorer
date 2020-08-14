@@ -7,6 +7,7 @@
 */
 
 define('GLOBAL_DEBUG',0);//0 or 1
+define('GLOBAL_DEBUG_HOOK',0);//0 or 1
 @date_default_timezone_set(@date_default_timezone_get());
 @set_time_limit(1200);//20min pathInfoMuti,search,upload,download...
 @ini_set("max_execution_time",1200);
@@ -37,14 +38,15 @@ define('FUNCTION_DIR',	LIB_DIR .'function/');		//函数库目录
 define('CLASS_DIR',		LIB_DIR .'kod/');			//工具类目录
 define('CORER_DIR',		LIB_DIR .'core/');			//核心目录
 define('SDK_DIR',		LIB_DIR .'sdks/');			//
-define('DEFAULT_PERRMISSIONS',0755);	//新建文件、解压文件默认权限，777 部分虚拟主机限制了777
+define('DEFAULT_PERRMISSIONS',0640);	//新建文件、解压文件默认权限
+define('DEFAULT_DIR_PERRMISSIONS',0750);//新建目录
 
 /*
  * 可以数据目录;移到web目录之外，可以使程序更安全, 就不用限制用户的扩展名权限了;
  * 1. 需要先将data文件夹移到别的地方 例如将data文件夹拷贝到D:/
  * 2. 在config文件夹下新建define.php 新增一行 <?php define('DATA_PATH','D:/data/');
+ * 注意:路径不能写错;其次php需要有权限访问移动后的目录(设置了防跨站需要关闭)
  */
-
 if(file_exists(BASIC_PATH.'config/define.php')){
 	include(BASIC_PATH.'config/define.php');
 }
@@ -64,6 +66,9 @@ include(FUNCTION_DIR.'common.function.php');
 include(FUNCTION_DIR.'web.function.php');
 include(FUNCTION_DIR.'file.function.php');
 include(FUNCTION_DIR.'helper.function.php');
+include(CLASS_DIR.'I18n.class.php');
+include(BASIC_PATH.'config/version.php');
+check_cache();
 
 $config['appStartTime'] = mtime();
 $config['appCharset']	= 'utf-8';//该程序整体统一编码
@@ -83,21 +88,27 @@ if (strtoupper(substr(PHP_OS, 0,3)) === 'WIN') {
 	$config['systemCharset']='utf-8';
 }
 
-// 部分反向代理导致获取不到url的问题优化
+// 部分反向代理导致获取不到url的问题优化;忽略同域名http和https的情况
 if(isset($_COOKIE['APP_HOST'])){
-	define('HOST',$_COOKIE['HOST']);
-	define('APP_HOST',$_COOKIE['APP_HOST']);
+	if( get_url_domain($_COOKIE['HOST']) != get_url_domain($_COOKIE['APP_HOST']) ||
+	    get_url_scheme($_COOKIE['HOST']) == get_url_scheme($_COOKIE['APP_HOST']) ){
+		define('HOST',$_COOKIE['HOST']);
+		define('APP_HOST',$_COOKIE['APP_HOST']);
+	}
 }
-if(!defined('HOST')){		define('HOST',get_host().'/');}
-if(!defined('WEB_ROOT')){	define('WEB_ROOT',get_webroot(BASIC_PATH));}
+if(!defined('HOST')){		define('HOST',rtrim(get_host(),'/').'/');}
+if(!defined('WEB_ROOT')){	define('WEB_ROOT',webroot_path(BASIC_PATH) );}
 if(!defined('APP_HOST')){	define('APP_HOST',HOST.str_replace(WEB_ROOT,'',BASIC_PATH));} //程序根目录
 define('PLUGIN_HOST',APP_HOST.str_replace(BASIC_PATH,'',PLUGIN_DIR));//插件目录
 
-include(CONTROLLER_DIR.'util.php');
+include(CONTROLLER_DIR.'utils.php');
 include(BASIC_PATH.'config/setting.php');
-include(BASIC_PATH.'config/version.php');
-
-
+if (file_exists(BASIC_PATH.'config/setting_user.php')) {
+	include_once(BASIC_PATH.'config/setting_user.php');
+}
+if(file_exists(CONTROLLER_DIR.'debug.class.php')){
+	include_once(CONTROLLER_DIR.'debug.class.php');
+}
 init_common();
 $config['autorun'] = array(
 	array('controller'=>'user','function'=>'loginCheck'),
